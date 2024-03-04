@@ -120,15 +120,15 @@ async function dump(context: DirectoryContext): Promise<void> {
       return name1 > name2 ? 1 : -1;
     };
 
+    const { AUTH0_KEYWORD_REPLACE_MAPPINGS, AUTH0_PRESERVE_KEYWORDS } = context.config;
+
     const formatted = {
       ...database,
       ...(database.enabled_clients && {
         enabled_clients: (() => {
           if (
-            doesHaveKeywordMarker(
-              database.enabled_clients,
-              context.config.AUTH0_KEYWORD_REPLACE_MAPPINGS || {}
-            )
+            AUTH0_PRESERVE_KEYWORDS &&
+            doesHaveKeywordMarker(database.enabled_clients, AUTH0_KEYWORD_REPLACE_MAPPINGS || {})
           ) {
             return database.enabled_clients;
           }

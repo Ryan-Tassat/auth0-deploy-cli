@@ -1,5 +1,5 @@
 import path from 'path';
-import fs from 'fs-extra';
+import fs, { readFileSync, readdirSync } from 'fs-extra';
 import { expect } from 'chai';
 import { constants } from '../../../src/tools';
 
@@ -326,5 +326,68 @@ describe('#directory context databases', () => {
     expect(fs.readFileSync(path.join(scripsFolder, 'change_email.js'), 'utf8')).to.deep.equal(
       scriptValidate
     );
+  });
+
+  it('should preserve enabled_clients if keyword preservation is enabled', async () => {
+    cleanThenMkdir(dbDumpDir);
+    const context = new Context(
+      {
+        AUTH0_INPUT_FILE: dbDumpDir,
+        AUTH0_PRESERVE_KEYWORDS: true,
+        AUTH0_KEYWORD_REPLACE_MAPPINGS: { DB_ENABLED_CLIENTS: ['client-1', 'clien-2'] },
+      },
+      mockMgmtClient()
+    );
+
+    context.assets.databases = [
+      {
+        strategy: 'auth0',
+        name: 'user-db',
+        enabled_clients: '@@DB_ENABLED_CLIENTS@@',
+        options: {
+          customScripts: [],
+        },
+      },
+      {
+        strategy: 'auth0',
+        name: 'other-user-db',
+        enabled_clients: ['client-1', 'client-2', 'client-3'],
+        options: {
+          customScripts: [],
+        },
+      },
+    ];
+
+    await handler.dump(context);
+    const outputDir = path.join(dbDumpDir, constants.DATABASE_CONNECTIONS_DIRECTORY);
+
+    const dirPaths = await readdirSync(outputDir);
+
+    expect(dirPaths).to.have.length(2);
+
+    dirPaths.forEach((dirPath) => {
+      const dbFile = readFileSync(
+        path.join(dbDumpDir, constants.DATABASE_CONNECTIONS_DIRECTORY, dirPath, 'database.json')
+      );
+      const db = JSON.parse(dbFile.toString());
+
+      if (db.name === 'user-db') {
+        expect(db).to.deep.equal({
+          strategy: 'auth0',
+          name: 'user-db',
+          enabled_clients: '@@DB_ENABLED_CLIENTS@@',
+          options: { customScripts: {} },
+        });
+      } else if (db.name === 'other-user-db') {
+        expect(db).to.deep.equal({
+          strategy: 'auth0',
+          name: 'other-user-db',
+          enabled_clients: ['client-1', 'client-2', 'client-3'],
+          options: { customScripts: {} },
+        });
+      } else {
+        throw new Error(`unexpected DB name: ${db.name}`);
+      }
+    });
   });
 });
