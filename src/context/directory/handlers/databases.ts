@@ -1,6 +1,7 @@
 import path from 'path';
 import fs from 'fs-extra';
 import { constants, loadFileAndReplaceKeywords } from '../../../tools';
+import { doesHaveKeywordMarker } from '../../../keywordPreservation';
 
 import log from '../../../logger';
 import {
@@ -122,10 +123,17 @@ async function dump(context: DirectoryContext): Promise<void> {
     const formatted = {
       ...database,
       ...(database.enabled_clients && {
-        enabled_clients: mapClientID2NameSorted(
-          database.enabled_clients,
-          context.assets.clientsOrig || []
-        ),
+        enabled_clients: (() => {
+          if (
+            doesHaveKeywordMarker(
+              database.enabled_clients,
+              context.config.AUTH0_KEYWORD_REPLACE_MAPPINGS || {}
+            )
+          ) {
+            return database.enabled_clients;
+          }
+          return mapClientID2NameSorted(database.enabled_clients, context.assets.clientsOrig || []);
+        })(),
       }),
       options: {
         ...database.options,
